@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Price Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            animation: rotate 10s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .search-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .result-card {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease-out;
+        }
+        .result-card.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container mx-auto max-w-4xl">
+        <div class="text-center mb-12">
+            <div class="logo mx-auto mb-6"></div>
+            <h1 class="text-4xl font-bold text-white mb-4">Amazon Price Tracker</h1>
+            <p class="text-gray-200 text-lg">Track prices of your favorite Amazon products</p>
+        </div>
+
+        <div class="search-container rounded-xl p-6 mb-8">
+            <form id="searchForm" class="flex flex-col md:flex-row gap-4">
+                <input type="text" id="amazonUrl" placeholder="Paste Amazon product URL here" 
+                       class="flex-1 px-6 py-3 rounded-lg border-2 border-transparent focus:border-purple-400 focus:outline-none text-gray-700">
+                <button type="submit" 
+                        class="px-8 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transform hover:scale-105 transition-all duration-200">
+                    Track Price
+                </button>
+            </form>
+        </div>
+
+        <div id="result" class="result-card rounded-xl p-6 hidden">
+            <div class="flex flex-col gap-4">
+                <h2 id="productTitle" class="text-xl font-semibold text-gray-800"></h2>
+                <div class="flex items-center gap-4">
+                    <span class="text-2xl font-bold text-purple-600" id="productPrice"></span>
+                    <span class="text-sm text-gray-500">Current Price</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let priceChart = null;
+
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('amazonUrl').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `url=${encodeURIComponent(url)}`
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('productTitle').textContent = data.title;
+                    document.getElementById('productPrice').textContent = `$${data.price}`;
+                    resultDiv.classList.remove('hidden');
+                    setTimeout(() => resultDiv.classList.add('show'), 100);
+
+                    // Update price history chart
+                    if (priceChart) {
+                        priceChart.destroy();
+                    }
+
+                    const ctx = document.getElementById('priceChart').getContext('2d');
+                    priceChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.history.map(item => item.timestamp),
+                            datasets: [{
+                                label: 'Price History',
+                                data: data.history.map(item => parseFloat(item.price)),
+                                borderColor: 'rgb(147, 51, 234)',
+                                backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                                tension: 0.3,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '$' + value.toFixed(2);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html> 
